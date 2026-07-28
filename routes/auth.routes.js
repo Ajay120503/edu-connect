@@ -10,6 +10,7 @@ const {
   resetPassword,
   getMe,
   refreshToken,
+  deleteAccount,
 } = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 
@@ -47,5 +48,6 @@ router.post('/refresh-token', refreshToken);
 
 // Protected routes
 router.get('/me', authMiddleware, getMe);
+router.delete('/me', authMiddleware, deleteAccount);
 
 module.exports = router;

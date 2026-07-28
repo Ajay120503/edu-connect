@@ -2,6 +2,13 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
+const Post = require('../models/Post');
+const Comment = require('../models/Comment');
+const Application = require('../models/Application');
+const JobPost = require('../models/JobPost');
+const Conversation = require('../models/Conversation');
+const Message = require('../models/Message');
+const Notification = require('../models/Notification');
 const { sendVerificationEmail, sendPasswordResetOTP } = require('../utils/email');
 const { getIO } = require('../config/socket');
 
@@ -301,6 +308,50 @@ const refreshToken = async (req, res) => {
   }
 };
 
+// @desc    Delete user account and all related data
+// @route   DELETE /api/auth/me
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // First, get all comment IDs made by this user to clean up Post references
+    const userCommentIds = await Comment.find({ user: userId }).distinct('_id');
+
+    // Run all deletions and cleanups in parallel
+    await Promise.all([
+      // Delete user's own documents
+      User.findByIdAndDelete(userId),
+      Post.deleteMany({ user: userId }),
+      Comment.deleteMany({ user: userId }),
+      Application.deleteMany({ user: userId }),
+      JobPost.deleteMany({ postedBy: userId }),
+      Conversation.deleteMany({ participants: userId }),
+      Message.deleteMany({ sender: userId }),
+      Notification.deleteMany({ recipient: userId }),
+
+      // Remove user's likes from all posts
+      Post.updateMany({ likes: userId }, { $pull: { likes: userId } }),
+      // Remove user's saves from all posts
+      Post.updateMany({ savedBy: userId }, { $pull: { savedBy: userId } }),
+      // Remove user's comment references from posts
+      Post.updateMany({ comments: { $in: userCommentIds } }, { $pull: { comments: { $in: userCommentIds } } }),
+
+      // Remove user from followers/following lists of other users
+      User.updateMany({ followers: userId }, { $pull: { followers: userId } }),
+      User.updateMany({ following: userId }, { $pull: { following: userId } }),
+    ]);
+
+    // Clear cookies
+    res.cookie('token', '', { httpOnly: true, expires: new Date(0) });
+    res.cookie('refreshToken', '', { httpOnly: true, expires: new Date(0) });
+
+    res.json({ success: true, message: 'Account deleted successfully.' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ message: 'Server error during account deletion.' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -310,4 +361,5 @@ module.exports = {
   resetPassword,
   getMe,
   refreshToken,
+  deleteAccount,
 };
