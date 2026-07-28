@@ -32,7 +32,7 @@ const getJobs = async (req, res) => {
     }
 
     const jobs = await JobPost.find(query)
-      .populate('postedBy', 'name profilePic role category institutionName')
+      .populate('postedBy', 'name profilePic role category institutionName institutionPic')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
