@@ -24,6 +24,10 @@ const notificationRoutes = require('./routes/notification.routes');
 
 // Initialize express
 const app = express();
+
+// Trust proxy - required for express-rate-limit behind Render's reverse proxy
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 
 // Initialize Socket.io
