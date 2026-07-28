@@ -160,6 +160,7 @@ const toggleLike = async (req, res) => {
           io.to(post.author.toString()).emit('notification', {
             type: 'post_like',
             message: `${req.user.name} liked your post.`,
+            link: `/post/${post._id}`,
           });
         } catch (socketErr) {}
       }
@@ -188,19 +189,20 @@ const toggleSave = async (req, res) => {
       return res.status(404).json({ message: 'Post not found.' });
     }
 
-    const isSaved = post.saves.includes(req.user._id);
+    const isSaved = post.savedBy.includes(req.user._id);
 
     if (isSaved) {
-      post.saves.pull(req.user._id);
+      post.savedBy.pull(req.user._id);
     } else {
-      post.saves.push(req.user._id);
+      post.savedBy.push(req.user._id);
     }
 
     await post.save();
 
     res.json({
       success: true,
-      isSaved: !isSaved,
+      saved: !isSaved,
+      savedBy: post.savedBy,
     });
   } catch (error) {
     console.error('Toggle save error:', error);
@@ -212,8 +214,16 @@ const toggleSave = async (req, res) => {
 // @route   GET /api/posts/saved
 const getSavedPosts = async (req, res) => {
   try {
-    const posts = await Post.find({ saves: req.user._id })
+    const posts = await Post.find({ savedBy: req.user._id })
       .populate('author', 'name profilePic role category institutionName')
+      .populate({
+        path: 'comments',
+        select: 'author text likes createdAt',
+        populate: {
+          path: 'author',
+          select: 'name profilePic',
+        },
+      })
       .sort({ createdAt: -1 });
 
     res.json({ success: true, posts });
@@ -223,7 +233,7 @@ const getSavedPosts = async (req, res) => {
   }
 };
 
-// @desc    Get single post
+// @desc    Get a single post
 // @route   GET /api/posts/:id
 const getPost = async (req, res) => {
   try {

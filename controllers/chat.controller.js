@@ -200,6 +200,7 @@ const sendMessage = async (req, res) => {
           type: 'new_message',
           message: `New message from ${req.user.name}`,
           sender: { _id: req.user._id, name: req.user.name },
+          link: `/chat`,
         });
       }
     } catch (socketErr) {

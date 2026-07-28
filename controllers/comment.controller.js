@@ -89,6 +89,7 @@ const addComment = async (req, res) => {
         io.to(post.author.toString()).emit('notification', {
           type: 'post_comment',
           message: `${req.user.name} commented on your post.`,
+          link: `/post/${postId}`,
         });
         // Emit new_comment event for real-time comment count updates
         io.to(post.author.toString()).emit('new_comment', {
@@ -150,6 +151,7 @@ const replyToComment = async (req, res) => {
         io.to(parentComment.author.toString()).emit('notification', {
           type: 'comment_reply',
           message: `${req.user.name} replied to your comment.`,
+          link: `/post/${parentComment.post}`,
         });
       } catch (socketErr) {}
     }
@@ -189,11 +191,12 @@ const likeComment = async (req, res) => {
         });
 
         try {
-          const io = getIO();
-          io.to(comment.author.toString()).emit('notification', {
-            type: 'comment_like',
-            message: `${req.user.name} liked your comment.`,
-          });
+        const io = getIO();
+        io.to(comment.author.toString()).emit('notification', {
+          type: 'comment_like',
+          message: `${req.user.name} liked your comment.`,
+          link: `/post/${comment.post}`,
+        });
         } catch (socketErr) {}
       }
     }

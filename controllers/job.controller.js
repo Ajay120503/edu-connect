@@ -115,6 +115,7 @@ const createJob = async (req, res) => {
         io.to(followerId.toString()).emit('notification', {
           type: 'job_applied',
           message: `${req.user.name} posted a new job: ${title}`,
+          link: `/jobs/${job._id}`,
         });
       } catch (socketErr) {}
     }
@@ -281,6 +282,7 @@ const applyToJob = async (req, res) => {
       io.to(job.postedBy.toString()).emit('notification', {
         type: 'job_applied',
         message: `${req.user.name} applied for your job: ${job.title}`,
+        link: `/jobs/${job._id}/applicants`,
       });
     } catch (socketErr) {}
 
@@ -366,6 +368,7 @@ const updateApplicationStatus = async (req, res) => {
       io.to(application.applicant.toString()).emit('notification', {
         type: 'application_status',
         message: `Your application status updated to: ${status}`,
+        link: `/jobs/${application.jobPost._id}`,
       });
     } catch (socketErr) {}
 
