@@ -184,13 +184,24 @@ const sendMessage = async (req, res) => {
     const populatedMessage = await Message.findById(message._id)
       .populate('sender', 'name profilePic');
 
-    // Emit socket event to conversation room (all participants are joined)
+    // Emit socket events
     try {
       const io = getIO();
-      // Emit only to the conversation room - all participants are already joined
-      // via joinConversation, so both sender and recipient receive it once.
-      // The sender should skip it client-side since they already added from REST.
+      const recipientId = conversation.participants.find(
+        (p) => p.toString() !== req.user._id.toString()
+      );
+
+      // Emit to conversation room (for active chat display)
       io.to(conversationId).emit('receive_message', populatedMessage);
+
+      // Emit notification to recipient's personal room (for badge counter and toast)
+      if (recipientId) {
+        io.to(recipientId.toString()).emit('notification', {
+          type: 'new_message',
+          message: `New message from ${req.user.name}`,
+          sender: { _id: req.user._id, name: req.user.name },
+        });
+      }
     } catch (socketErr) {
       // Socket not available
     }

@@ -85,9 +85,15 @@ const addComment = async (req, res) => {
 
       try {
         const io = getIO();
+        // Notify post author (badge + toast)
         io.to(post.author.toString()).emit('notification', {
           type: 'post_comment',
           message: `${req.user.name} commented on your post.`,
+        });
+        // Emit new_comment event for real-time comment count updates
+        io.to(post.author.toString()).emit('new_comment', {
+          postId,
+          comment: populatedComment,
         });
       } catch (socketErr) {}
     }

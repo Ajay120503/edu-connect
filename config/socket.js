@@ -45,20 +45,6 @@ const initSocket = (httpServer) => {
       socket.leave(conversationId);
     });
 
-    // Handle send message
-    socket.on('send_message', (message) => {
-      const { conversation, recipient } = message;
-      // Send to the conversation room
-      io.to(conversation).emit('receive_message', message);
-      // Also emit to recipient's personal room for notification
-      io.to(recipient).emit('receive_message', message);
-      io.to(recipient).emit('notification', {
-        type: 'new_message',
-        message: 'New message received',
-        data: message,
-      });
-    });
-
     // Handle mark as read
     socket.on('mark_read', ({ messageId, conversationId, userId }) => {
       io.to(conversationId).emit('message_read', { messageId, userId });
