@@ -184,18 +184,13 @@ const sendMessage = async (req, res) => {
     const populatedMessage = await Message.findById(message._id)
       .populate('sender', 'name profilePic');
 
-    // Emit socket event
+    // Emit socket event to conversation room (all participants are joined)
     try {
       const io = getIO();
-      const recipientId = conversation.participants.find(
-        (p) => p.toString() !== req.user._id.toString()
-      );
-
+      // Emit only to the conversation room - all participants are already joined
+      // via joinConversation, so both sender and recipient receive it once.
+      // The sender should skip it client-side since they already added from REST.
       io.to(conversationId).emit('receive_message', populatedMessage);
-
-      if (recipientId) {
-        io.to(recipientId.toString()).emit('receive_message', populatedMessage);
-      }
     } catch (socketErr) {
       // Socket not available
     }
