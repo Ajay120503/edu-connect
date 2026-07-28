@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+
+# Environment variables (contains secrets)
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime / Process
+pids/
+*.pid
+*.seed
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Uploads (user-generated content during development)
+uploads/
+
+# IDE / Editor
+.vscode/
+.idea/

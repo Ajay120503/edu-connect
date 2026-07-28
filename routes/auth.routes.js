@@ -1,0 +1,51 @@
+const express = require('express');
+const router = express.Router();
+const { body } = require('express-validator');
+const {
+  register,
+  login,
+  logout,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+  getMe,
+  refreshToken,
+} = require('../controllers/auth.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
+
+// Validation rules
+const registerValidation = [
+  body('name').trim().notEmpty().withMessage('Name is required').isLength({ max: 100 }),
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').optional().isIn(['student', 'teacher', 'professor', 'hod', 'principal']),
+];
+
+const loginValidation = [
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('password').notEmpty().withMessage('Password is required'),
+];
+
+const forgotPasswordValidation = [
+  body('email').isEmail().withMessage('Please enter a valid email'),
+];
+
+const resetPasswordValidation = [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('otp').notEmpty().withMessage('OTP is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+];
+
+// Public routes
+router.post('/register', registerValidation, register);
+router.post('/login', loginValidation, login);
+router.post('/logout', logout);
+router.get('/verify-email/:token', verifyEmail);
+router.post('/forgot-password', forgotPasswordValidation, forgotPassword);
+router.post('/reset-password', resetPasswordValidation, resetPassword);
+router.post('/refresh-token', refreshToken);
+
+// Protected routes
+router.get('/me', authMiddleware, getMe);
+
+module.exports = router;
