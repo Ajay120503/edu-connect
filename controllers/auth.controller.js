@@ -76,13 +76,11 @@ const register = async (req, res) => {
       verificationTokenExpires: Date.now() + 60 * 60 * 1000, // 1 hour
     });
 
-    // Send verification email
-    try {
-      await sendVerificationEmail(email, name, verificationToken);
-    } catch (emailError) {
+    // Send verification email (fire-and-forget: don't block the response)
+    sendVerificationEmail(email, name, verificationToken).catch((emailError) => {
       console.error('Email sending failed:', emailError);
       // Don't fail registration if email fails - user can resend verification
-    }
+    });
 
     // Generate tokens
     const accessToken = generateToken(user._id);
