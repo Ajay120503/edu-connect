@@ -6,7 +6,11 @@ const onlineUsers = new Map(); // userId -> socketId mapping
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://edu-connect-3.vercel.app',
+      ],
       methods: ['GET', 'POST'],
       credentials: true,
     },
