@@ -46,6 +46,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://edu-connect-3.vercel.app',
+  'https://edu-connect-fwoo.onrender.com',
 ];
 
 app.use(
