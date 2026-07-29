@@ -189,12 +189,12 @@ const toggleSave = async (req, res) => {
       return res.status(404).json({ message: 'Post not found.' });
     }
 
-    const isSaved = post.savedBy.includes(req.user._id);
+    const isSaved = post.saves.includes(req.user._id);
 
     if (isSaved) {
-      post.savedBy.pull(req.user._id);
+      post.saves.pull(req.user._id);
     } else {
-      post.savedBy.push(req.user._id);
+      post.saves.push(req.user._id);
     }
 
     await post.save();
@@ -202,7 +202,7 @@ const toggleSave = async (req, res) => {
     res.json({
       success: true,
       saved: !isSaved,
-      savedBy: post.savedBy,
+      saves: post.saves,
     });
   } catch (error) {
     console.error('Toggle save error:', error);
@@ -214,7 +214,7 @@ const toggleSave = async (req, res) => {
 // @route   GET /api/posts/saved
 const getSavedPosts = async (req, res) => {
   try {
-    const posts = await Post.find({ savedBy: req.user._id })
+    const posts = await Post.find({ saves: req.user._id })
       .populate('author', 'name profilePic role category institutionName')
       .populate({
         path: 'comments',
