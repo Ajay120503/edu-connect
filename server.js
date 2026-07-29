@@ -44,7 +44,7 @@ app.use(
 // CORS - allow both localhost dev and Vercel production
 const allowedOrigins = [
   'http://localhost:5173',
-  'http://localhost:3000',
+  'http://localhost:5000',
   'https://edu-connect-3.vercel.app',
   'https://edu-connect-fwoo.onrender.com',
 ];

@@ -8,12 +8,15 @@ const initSocket = (httpServer) => {
     cors: {
       origin: [
         'http://localhost:5173',
-        'http://localhost:3000',
+        'http://localhost:5000',
         'https://edu-connect-3.vercel.app',
+        'https://edu-connect-fwoo.onrender.com',
       ],
       methods: ['GET', 'POST'],
       credentials: true,
     },
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
   io.on('connection', (socket) => {
