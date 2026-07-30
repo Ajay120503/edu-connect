@@ -77,6 +77,20 @@ const jobPostSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    viewCount: { type: Number, default: 0 },
+    coordinates: {
+      lat: { type: Number },
+      lng: { type: Number },
+    },
+    qna: [{
+      question: { type: String, required: true },
+      askedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      isAnonymous: { type: Boolean, default: false },
+      answer: { type: String, default: '' },
+      answeredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      answeredAt: { type: Date },
+      createdAt: { type: Date, default: Date.now },
+    }],
   },
   {
     timestamps: true,

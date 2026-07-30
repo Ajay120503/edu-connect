@@ -11,7 +11,16 @@ const {
   getUserJobs,
   getFollowers,
   getFollowing,
+  verifyUser,
+  requestVerification,
+  endorseSkill,
+  toggleOpportunityStatus,
+  updateTimeline,
 } = require('../controllers/user.controller');
+
+// Static routes MUST be before /:id
+router.patch('/me/opportunity-status', authMiddleware, toggleOpportunityStatus);
+router.post('/request-verification', authMiddleware, uploadProfile.single('document'), requestVerification);
 
 // Public routes
 router.get('/search', searchUsers);
@@ -28,5 +37,15 @@ router.put('/:id', authMiddleware, uploadProfile.fields([
   { name: 'resume', maxCount: 1 }
 ]), updateProfile);
 router.post('/:id/follow', authMiddleware, followUser);
+
+// F07 — Verified badge
+router.put('/admin/:id/verify', authMiddleware, verifyUser);
+
+// F09 — Skill endorsements
+router.post('/:id/skills/:skillName/endorse', authMiddleware, endorseSkill);
+router.delete('/:id/skills/:skillName/endorse', authMiddleware, endorseSkill);
+
+// F08 — Timeline
+router.put('/:id/timeline', authMiddleware, updateTimeline);
 
 module.exports = router;

@@ -243,10 +243,78 @@ const markAsRead = async (req, res) => {
   }
 };
 
+// @desc    F15 — React to a message
+// @route   POST /api/messages/:id/react
+const reactToMessage = async (req, res) => {
+  try {
+    const { emoji } = req.body;
+    const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+    if (!emoji || !ALLOWED_REACTIONS.includes(emoji)) {
+      return res.status(400).json({ message: 'Invalid emoji reaction.' });
+    }
+
+    const message = await Message.findById(req.params.id);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    // Verify user is a conversation participant
+    const conversation = await Conversation.findById(message.conversation);
+    if (!conversation || !conversation.participants.some(p => p.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    // Find existing reaction with this emoji
+    let existingReaction = message.reactions.find(r => r.emoji === emoji);
+
+    if (existingReaction) {
+      // Check if user already reacted with this emoji
+      const userIndex = existingReaction.reactedBy.findIndex(
+        uid => uid.toString() === req.user._id.toString()
+      );
+
+      if (userIndex > -1) {
+        // Remove user's reaction (toggle off)
+        existingReaction.reactedBy.splice(userIndex, 1);
+        if (existingReaction.reactedBy.length === 0) {
+          message.reactions = message.reactions.filter(r => r.emoji !== emoji);
+        }
+      } else {
+        // Add user's reaction
+        existingReaction.reactedBy.push(req.user._id);
+      }
+    } else {
+      // Create new reaction
+      message.reactions.push({
+        emoji,
+        reactedBy: [req.user._id],
+      });
+    }
+
+    await message.save();
+
+    // Emit via Socket.io
+    try {
+      const io = getIO();
+      io.to(message.conversation.toString()).emit('message_reaction', {
+        messageId: message._id,
+        reactions: message.reactions,
+      });
+    } catch (socketErr) {}
+
+    res.json({ success: true, reactions: message.reactions });
+  } catch (error) {
+    console.error('React to message error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
   createConversation,
   sendMessage,
   markAsRead,
+  reactToMessage,
 };

@@ -66,6 +66,11 @@ const createPost = async (req, res) => {
       return res.status(400).json({ message: 'Post must have text or images.' });
     }
 
+    // F11 — Role guard for noticeboard posts
+    if (type === 'noticeboard' && !['teacher', 'professor', 'hod', 'principal'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only institution members can post notices.' });
+    }
+
     const postData = {
       author: req.user._id,
       text: text || '',
@@ -73,6 +78,11 @@ const createPost = async (req, res) => {
       tags: tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags) : [],
       images: [],
     };
+
+    // F11 — Set expiry for noticeboard posts
+    if (type === 'noticeboard') {
+      postData.noticeboardExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+    }
 
     // Upload images to Cloudinary
     if (req.files && req.files.length > 0) {
@@ -258,6 +268,25 @@ const getPost = async (req, res) => {
   }
 };
 
+// @desc    F11 — Get active noticeboard posts for explore page
+// @route   GET /api/posts/noticeboard
+const getNoticeboardPosts = async (req, res) => {
+  try {
+    const notices = await Post.find({
+      type: 'noticeboard',
+      noticeboardExpiresAt: { $gt: new Date() },
+    })
+      .populate('author', 'name profilePic role category institutionName institutionPic')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    res.json({ success: true, notices });
+  } catch (error) {
+    console.error('Get noticeboard posts error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getFeed,
   createPost,
@@ -266,4 +295,5 @@ module.exports = {
   toggleSave,
   getSavedPosts,
   getPost,
+  getNoticeboardPosts,
 };

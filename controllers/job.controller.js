@@ -1,6 +1,7 @@
 const JobPost = require('../models/JobPost');
 const Application = require('../models/Application');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 const { getIO } = require('../config/socket');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../middlewares/upload.middleware');
 
@@ -434,6 +435,293 @@ const getMyJobs = async (req, res) => {
   }
 };
 
+// @desc    F01 — Get matched jobs for student based on profile
+// @route   GET /api/jobs/matched
+const getMatchedJobs = async (req, res) => {
+  try {
+    const student = await User.findById(req.user._id);
+    if (!student || student.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can get matched jobs.' });
+    }
+
+    const jobs = await JobPost.find({ isActive: true })
+      .populate('postedBy', 'name profilePic role category institutionName institutionPic');
+
+    const studentSkills = (student.skills || []).map(s => s.toLowerCase().trim());
+    const studentQualifications = (student.qualifications || []).map(q => q.toLowerCase().trim());
+
+    const scored = jobs.map(job => {
+      const jobSkills = (job.skillsRequired || []).map(s => s.toLowerCase().trim());
+      const matched = studentSkills.filter(s => jobSkills.includes(s));
+      const missing = jobSkills.filter(s => !studentSkills.includes(s));
+
+      const skillScore = jobSkills.length
+        ? (matched.length / jobSkills.length) * 60 : 0;
+
+      const reqQuals = job.requiredQualifications
+        ? job.requiredQualifications.split(',').map(q => q.trim().toLowerCase())
+        : [];
+      const eduScore = reqQuals.some(q => studentQualifications.some(sq => sq.includes(q) || q.includes(sq))) ? 30 : 0;
+
+      const locScore = job.location === 'onsite' && student.city ? 10 : 5;
+
+      return {
+        job,
+        score: Math.round(skillScore + eduScore + locScore),
+        matchedSkills: matched,
+        missingSkills: missing,
+      };
+    });
+
+    const top5 = scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    res.json({ success: true, matched: top5 });
+  } catch (error) {
+    console.error('Get matched jobs error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F06 — Increment view count for a job
+// @route   PATCH /api/jobs/:id/view
+const incrementViewCount = async (req, res) => {
+  try {
+    await JobPost.findByIdAndUpdate(req.params.id, { $inc: { viewCount: 1 } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Increment view count error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F03 — Get jobs for map view
+// @route   GET /api/jobs/map
+const getJobsMap = async (req, res) => {
+  try {
+    const { city, state } = req.query;
+    let query = { isActive: true };
+
+    const jobs = await JobPost.find(query)
+      .select('title institutionName institutionLogo isPaid roleType coordinates location postedBy')
+      .populate('postedBy', 'name institutionName city state');
+
+    // Filter by city/state if provided (from user profile or query params)
+    let filtered = jobs;
+    if (city || state) {
+      filtered = jobs.filter(job => {
+        const poster = job.postedBy;
+        const cityMatch = city ? (poster?.city?.toLowerCase() === city.toLowerCase()) : true;
+        const stateMatch = state ? (poster?.state?.toLowerCase() === state.toLowerCase()) : true;
+        return cityMatch && stateMatch;
+      });
+    }
+
+    res.json({ success: true, jobs: filtered });
+  } catch (error) {
+    console.error('Get jobs map error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F14 — Quick Apply to a job
+// @route   POST /api/jobs/:id/quick-apply
+const quickApply = async (req, res) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can quick apply.' });
+    }
+
+    const job = await JobPost.findById(req.params.id);
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found.' });
+    }
+
+    if (!job.isActive) {
+      return res.status(400).json({ message: 'This job is no longer accepting applications.' });
+    }
+
+    // Check if already applied
+    const existingApplication = await Application.findOne({
+      jobPost: job._id,
+      applicant: req.user._id,
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({ message: 'You have already applied to this job.' });
+    }
+
+    // Profile strength check
+    const student = await User.findById(req.user._id);
+    let score = 0;
+    if (student.name) score += 10;
+    if (student.profilePic?.url) score += 15;
+    if (student.bio) score += 10;
+    if (student.age) score += 5;
+    if (student.address) score += 5;
+    if (student.resumeUrl) score += 20;
+    if (student.skills?.length >= 3) score += 15;
+    if (student.qualifications?.length >= 1) score += 10;
+    if (student.educationLevel) score += 10;
+
+    if (score < 80) {
+      return res.status(400).json({ message: 'Complete your profile to unlock Quick Apply. Profile strength must be at least 80%.' });
+    }
+
+    const application = await Application.create({
+      jobPost: job._id,
+      applicant: req.user._id,
+      coverLetter: 'Applied via Quick Apply',
+    });
+
+    job.applicants.push(req.user._id);
+    await job.save();
+
+    // Notify job poster
+    await Notification.create({
+      recipient: job.postedBy,
+      sender: req.user._id,
+      type: 'job_applied',
+      message: `${req.user.name} applied for your job: ${job.title}`,
+      link: `/jobs/${job._id}`,
+    });
+
+    try {
+      const io = getIO();
+      io.to(job.postedBy.toString()).emit('notification', {
+        type: 'job_applied',
+        message: `${req.user.name} applied for your job: ${job.title}`,
+        link: `/jobs/${job._id}/applicants`,
+      });
+    } catch (socketErr) {}
+
+    res.status(201).json({ success: true, application, message: 'Applied successfully!' });
+  } catch (error) {
+    console.error('Quick apply error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F12 — Add a question to a job QnA
+// @route   POST /api/jobs/:id/qna
+const addQnAQuestion = async (req, res) => {
+  try {
+    const { question, isAnonymous } = req.body;
+    if (!question) {
+      return res.status(400).json({ message: 'Question is required.' });
+    }
+
+    const job = await JobPost.findById(req.params.id);
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found.' });
+    }
+
+    job.qna.push({
+      question,
+      askedBy: req.user._id,
+      isAnonymous: isAnonymous === true || isAnonymous === 'true',
+    });
+
+    await job.save();
+
+    // Notify job poster
+    await Notification.create({
+      recipient: job.postedBy,
+      sender: req.user._id,
+      type: 'job_qna',
+      message: `A new question was asked on your job: ${job.title}`,
+      link: `/jobs/${job._id}`,
+    });
+
+    const populated = await JobPost.findById(job._id)
+      .populate('qna.askedBy', 'name profilePic');
+
+    res.status(201).json({ success: true, qna: populated.qna });
+  } catch (error) {
+    console.error('Add QnA question error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F12 — Answer a QnA question
+// @route   POST /api/jobs/:id/qna/:qnaId/answer
+const answerQnA = async (req, res) => {
+  try {
+    const { answer } = req.body;
+    if (!answer) {
+      return res.status(400).json({ message: 'Answer is required.' });
+    }
+
+    const job = await JobPost.findById(req.params.id);
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found.' });
+    }
+
+    if (job.postedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only the job poster can answer questions.' });
+    }
+
+    const qnaItem = job.qna.id(req.params.qnaId);
+    if (!qnaItem) {
+      return res.status(404).json({ message: 'Question not found.' });
+    }
+
+    qnaItem.answer = answer;
+    qnaItem.answeredBy = req.user._id;
+    qnaItem.answeredAt = new Date();
+    await job.save();
+
+    // Notify question asker
+    if (qnaItem.askedBy && qnaItem.askedBy.toString() !== req.user._id.toString()) {
+      await Notification.create({
+        recipient: qnaItem.askedBy,
+        sender: req.user._id,
+        type: 'job_qna',
+        message: `Your question on "${job.title}" was answered.`,
+        link: `/jobs/${job._id}`,
+      });
+    }
+
+    const populated = await JobPost.findById(job._id)
+      .populate('qna.askedBy', 'name profilePic');
+
+    res.json({ success: true, qna: populated.qna });
+  } catch (error) {
+    console.error('Answer QnA error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F12 — Delete a QnA question
+// @route   DELETE /api/jobs/:id/qna/:qnaId
+const deleteQnA = async (req, res) => {
+  try {
+    const job = await JobPost.findById(req.params.id);
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found.' });
+    }
+
+    const qnaItem = job.qna.id(req.params.qnaId);
+    if (!qnaItem) {
+      return res.status(404).json({ message: 'Question not found.' });
+    }
+
+    if (qnaItem.askedBy.toString() !== req.user._id.toString() && job.postedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this question.' });
+    }
+
+    qnaItem.deleteOne();
+    await job.save();
+
+    res.json({ success: true, message: 'Question deleted.' });
+  } catch (error) {
+    console.error('Delete QnA error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getJobs,
   createJob,
@@ -445,4 +733,11 @@ module.exports = {
   updateApplicationStatus,
   getMyApplications,
   getMyJobs,
+  getMatchedJobs,
+  incrementViewCount,
+  getJobsMap,
+  quickApply,
+  addQnAQuestion,
+  answerQnA,
+  deleteQnA,
 };

@@ -9,7 +9,7 @@ const postSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['general', 'job', 'announcement', 'achievement'],
+      enum: ['general', 'job', 'announcement', 'achievement', 'noticeboard'],
       default: 'general',
     },
     text: {
@@ -47,6 +47,7 @@ const postSchema = new mongoose.Schema(
       ref: 'JobPost',
       default: null,
     },
+    noticeboardExpiresAt: { type: Date },
   },
   {
     timestamps: true,

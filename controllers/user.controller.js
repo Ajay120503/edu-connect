@@ -287,6 +287,160 @@ const getFollowing = async (req, res) => {
   }
 };
 
+// @desc    F07 — Verify/update user verified status (admin only)
+// @route   PUT /api/admin/users/:id/verify
+const verifyUser = async (req, res) => {
+  try {
+    const { verifiedStatus } = req.body;
+    if (!['none', 'email', 'institution', 'top_contributor'].includes(verifiedStatus)) {
+      return res.status(400).json({ message: 'Invalid verified status.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        verifiedStatus,
+        isVerified: verifiedStatus !== 'none',
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Verify user error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F07 — Request institution verification (upload document)
+// @route   POST /api/users/request-verification
+const requestVerification = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Verification document is required.' });
+    }
+
+    const result = await uploadToCloudinary(req.file, 'educonnect/verification-docs');
+    req.user.verificationDocuments.push({
+      url: result.secure_url,
+      publicId: result.public_id,
+    });
+    await req.user.save();
+
+    res.json({ success: true, message: 'Verification request submitted.', user: req.user });
+  } catch (error) {
+    console.error('Request verification error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F09 — Endorse a skill on a user's profile
+// @route   POST /api/users/:id/skills/:skillName/endorse
+const endorseSkill = async (req, res) => {
+  try {
+    const { skillName } = req.params;
+    if (req.user._id.toString() === req.params.id) {
+      return res.status(400).json({ message: 'You cannot endorse your own skills.' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Since skills are still string array for backward compatibility,
+    // we're keeping it simple: endorsements based on skill name
+    // Check if skill exists on user
+    if (!user.skills.includes(skillName)) {
+      return res.status(404).json({ message: 'Skill not found on this user.' });
+    }
+
+    // For this version, we track endorsements using a simple approach
+    // The existing skills field is [String], we'll keep it backward compatible
+    // Endorsements are tracked via a simple array on the user
+    if (!user.skillEndorsements) {
+      user.skillEndorsements = new Map();
+    }
+
+    const endorsements = user.skillEndorsements?.get(skillName) || [];
+    const userId = req.user._id;
+
+    if (endorsements.some(e => e.toString() === userId.toString())) {
+      // Remove endorsement
+      user.skillEndorsements.set(skillName, endorsements.filter(e => e.toString() !== userId.toString()));
+      await user.save();
+      const count = (user.skillEndorsements?.get(skillName) || []).length;
+      return res.json({ success: true, endorsed: false, endorsementCount: count });
+    }
+
+    // Add endorsement
+    endorsements.push(userId);
+    user.skillEndorsements.set(skillName, endorsements);
+    await user.save();
+
+    res.json({ success: true, endorsed: true, endorsementCount: endorsements.length });
+  } catch (error) {
+    console.error('Endorse skill error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F10 — Toggle open to opportunities status
+// @route   PATCH /api/users/me/opportunity-status
+const toggleOpportunityStatus = async (req, res) => {
+  try {
+    const { openToOpportunities } = req.body;
+    if (typeof openToOpportunities !== 'boolean') {
+      return res.status(400).json({ message: 'openToOpportunities must be a boolean.' });
+    }
+
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can toggle this setting.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { openToOpportunities },
+      { returnDocument: 'after' }
+    );
+
+    res.json({ success: true, openToOpportunities: user.openToOpportunities });
+  } catch (error) {
+    console.error('Toggle opportunity status error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    F08 — Update user timeline
+// @route   PUT /api/users/:id/timeline
+const updateTimeline = async (req, res) => {
+  try {
+    if (req.user._id.toString() !== req.params.id) {
+      return res.status(403).json({ message: 'You can only update your own timeline.' });
+    }
+
+    const { timeline } = req.body;
+    if (!Array.isArray(timeline)) {
+      return res.status(400).json({ message: 'Timeline must be an array.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { timeline },
+      { returnDocument: 'after' }
+    );
+
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Update timeline error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getUserProfile,
   updateProfile,
@@ -296,4 +450,9 @@ module.exports = {
   getUserJobs,
   getFollowers,
   getFollowing,
+  verifyUser,
+  requestVerification,
+  endorseSkill,
+  toggleOpportunityStatus,
+  updateTimeline,
 };

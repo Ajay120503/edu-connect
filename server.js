@@ -21,6 +21,7 @@ const commentRoutes = require('./routes/comment.routes');
 const jobRoutes = require('./routes/job.routes');
 const chatRoutes = require('./routes/chat.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const storyRoutes = require('./routes/story.routes');
 
 // Initialize express
 const app = express();
@@ -106,6 +107,7 @@ app.use('/api', commentRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/stories', storyRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -119,6 +119,28 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    verifiedStatus: {
+      type: String,
+      enum: ['none', 'email', 'institution', 'top_contributor'],
+      default: 'none',
+    },
+    verificationDocuments: [{
+      url: { type: String },
+      publicId: { type: String },
+      uploadedAt: { type: Date, default: Date.now },
+    }],
+    openToOpportunities: { type: Boolean, default: false },
+    skillEndorsements: {
+      type: Map,
+      of: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: new Map(),
+    },
+    timeline: [{
+      year: { type: String },
+      title: { type: String },
+      institution: { type: String },
+      type: { type: String, enum: ['school', 'college', 'work', 'achievement'] },
+    }],
     verificationToken: String,
     verificationTokenExpires: Date,
     resetPasswordToken: String,

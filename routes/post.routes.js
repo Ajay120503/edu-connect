@@ -10,7 +10,11 @@ const {
   toggleSave,
   getSavedPosts,
   getPost,
+  getNoticeboardPosts,
 } = require('../controllers/post.controller');
+
+// Static routes before /:id
+router.get('/noticeboard', getNoticeboardPosts);
 
 // Public routes (feed can be viewed without auth but with optional auth for personalized feed)
 router.get('/', getFeed);
