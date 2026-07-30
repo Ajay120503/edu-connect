@@ -3,6 +3,8 @@ const { Server } = require('socket.io');
 let io;
 // Map userId -> Set of socketIds (supports multiple tabs)
 const onlineUsers = new Map();
+// Map socketId -> disconnect timeout (for reconnection grace period)
+const disconnectTimeouts = new Map();
 
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
@@ -23,18 +25,25 @@ const initSocket = (httpServer) => {
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // Join personal room for real-time notifications
+    // Join personal room and track online status
     socket.on('join_room', (userId) => {
       socket.join(userId);
-      
+
       // Track all socket IDs for this user (supports multiple tabs)
       if (!onlineUsers.has(userId)) {
         onlineUsers.set(userId, new Set());
       }
+      const wasOffline = onlineUsers.get(userId).size === 0;
       onlineUsers.get(userId).add(socket.id);
-      
-      // Only emit online if user was previously offline
-      if (onlineUsers.get(userId).size === 1) {
+
+      // Clear any pending disconnect timeout for reconnection grace period
+      if (disconnectTimeouts.has(socket.id)) {
+        clearTimeout(disconnectTimeouts.get(socket.id));
+        disconnectTimeouts.delete(socket.id);
+      }
+
+      // Only emit online if user was previously offline (handles reconnection)
+      if (wasOffline) {
         io.emit('online_status', { userId, isOnline: true });
       }
       console.log(`User ${userId} joined their room (connections: ${onlineUsers.get(userId).size})`);
@@ -72,9 +81,17 @@ const initSocket = (httpServer) => {
           socketIds.delete(socket.id);
           // Only emit offline if ALL sockets for this user are disconnected
           if (socketIds.size === 0) {
-            onlineUsers.delete(userId);
-            io.emit('online_status', { userId, isOnline: false });
-            console.log(`User ${userId} is now offline (all connections closed)`);
+            // Grace period: wait 3 seconds before marking as offline
+            // This handles page refreshes where a new socket connects quickly
+            const timeout = setTimeout(() => {
+              // Check if user still has no connections
+              if (!onlineUsers.has(userId) || onlineUsers.get(userId).size === 0) {
+                onlineUsers.delete(userId);
+                io.emit('online_status', { userId, isOnline: false });
+                console.log(`User ${userId} is now offline (all connections closed)`);
+              }
+            }, 3000);
+            disconnectTimeouts.set(socket.id, timeout);
           } else {
             console.log(`User ${userId} still has ${socketIds.size} active connection(s)`);
           }
