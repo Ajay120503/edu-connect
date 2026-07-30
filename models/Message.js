@@ -18,7 +18,7 @@ const messageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'file'],
+      enum: ['text', 'image', 'file', 'deleted'],
       default: 'text',
     },
     fileUrl: {
@@ -43,6 +43,8 @@ const messageSchema = new mongoose.Schema(
       emoji: { type: String },
       reactedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     }],
+    editedAt: { type: Date },
+    deletedAt: { type: Date },
   },
   {
     timestamps: true,

@@ -9,6 +9,8 @@ const {
   sendMessage,
   markAsRead,
   reactToMessage,
+  updateMessage,
+  deleteMessage,
 } = require('../controllers/chat.controller');
 
 // All chat routes are protected
@@ -18,5 +20,7 @@ router.post('/conversations', authMiddleware, createConversation);
 router.post('/messages', authMiddleware, uploadChatFile.single('file'), sendMessage);
 router.put('/messages/:id/read', authMiddleware, markAsRead);
 router.post('/messages/:id/react', authMiddleware, reactToMessage);
+router.put('/messages/:id', authMiddleware, updateMessage);
+router.delete('/messages/:id', authMiddleware, deleteMessage);
 
 module.exports = router;

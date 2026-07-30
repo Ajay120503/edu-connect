@@ -310,6 +310,86 @@ const reactToMessage = async (req, res) => {
   }
 };
 
+// @desc    Update/edit a message
+// @route   PUT /api/messages/:id
+const updateMessage = async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: 'Message content is required.' });
+    }
+
+    const message = await Message.findById(req.params.id);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    // Only the sender can edit their message
+    if (message.sender.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You can only edit your own messages.' });
+    }
+
+    // Only text messages can be edited
+    if (message.type !== 'text') {
+      return res.status(400).json({ message: 'Only text messages can be edited.' });
+    }
+
+    message.content = content.trim();
+    message.editedAt = new Date();
+    await message.save();
+
+    const populatedMessage = await Message.findById(message._id)
+      .populate('sender', 'name profilePic');
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.to(message.conversation.toString()).emit('message_updated', populatedMessage);
+    } catch (socketErr) {}
+
+    res.json({ success: true, message: populatedMessage });
+  } catch (error) {
+    console.error('Update message error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    Delete a message (soft delete)
+// @route   DELETE /api/messages/:id
+const deleteMessage = async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.id);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    // Only the sender can delete their message
+    if (message.sender.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You can only delete your own messages.' });
+    }
+
+    // Soft delete - replace content with deletion notice
+    message.content = 'This message was deleted';
+    message.type = 'deleted';
+    message.deletedAt = new Date();
+    await message.save();
+
+    // Emit socket event for real-time deletion
+    try {
+      const io = getIO();
+      io.to(message.conversation.toString()).emit('message_deleted', {
+        messageId: message._id,
+        conversationId: message.conversation,
+      });
+    } catch (socketErr) {}
+
+    res.json({ success: true, message: 'Message deleted.' });
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
@@ -317,4 +397,6 @@ module.exports = {
   sendMessage,
   markAsRead,
   reactToMessage,
+  updateMessage,
+  deleteMessage,
 };

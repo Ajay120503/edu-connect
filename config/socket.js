@@ -1,7 +1,8 @@
 const { Server } = require('socket.io');
 
 let io;
-const onlineUsers = new Map(); // userId -> socketId mapping
+// Map userId -> Set of socketIds (supports multiple tabs)
+const onlineUsers = new Map();
 
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
@@ -25,9 +26,18 @@ const initSocket = (httpServer) => {
     // Join personal room for real-time notifications
     socket.on('join_room', (userId) => {
       socket.join(userId);
-      onlineUsers.set(userId, socket.id);
-      io.emit('online_status', { userId, isOnline: true });
-      console.log(`User ${userId} joined their room`);
+      
+      // Track all socket IDs for this user (supports multiple tabs)
+      if (!onlineUsers.has(userId)) {
+        onlineUsers.set(userId, new Set());
+      }
+      onlineUsers.get(userId).add(socket.id);
+      
+      // Only emit online if user was previously offline
+      if (onlineUsers.get(userId).size === 1) {
+        io.emit('online_status', { userId, isOnline: true });
+      }
+      console.log(`User ${userId} joined their room (connections: ${onlineUsers.get(userId).size})`);
     });
 
     // Handle typing events
@@ -56,11 +66,18 @@ const initSocket = (httpServer) => {
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.id}`);
-      // Find and remove user from onlineUsers
-      for (const [userId, sockId] of onlineUsers.entries()) {
-        if (sockId === socket.id) {
-          onlineUsers.delete(userId);
-          io.emit('online_status', { userId, isOnline: false });
+      // Find user by socket ID and remove this socket
+      for (const [userId, socketIds] of onlineUsers.entries()) {
+        if (socketIds.has(socket.id)) {
+          socketIds.delete(socket.id);
+          // Only emit offline if ALL sockets for this user are disconnected
+          if (socketIds.size === 0) {
+            onlineUsers.delete(userId);
+            io.emit('online_status', { userId, isOnline: false });
+            console.log(`User ${userId} is now offline (all connections closed)`);
+          } else {
+            console.log(`User ${userId} still has ${socketIds.size} active connection(s)`);
+          }
           break;
         }
       }
