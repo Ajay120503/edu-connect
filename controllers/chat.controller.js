@@ -390,6 +390,80 @@ const deleteMessage = async (req, res) => {
   }
 };
 
+// @desc    Clear all messages in a conversation (for current user — soft delete)
+// @route   DELETE /api/conversations/:id/clear
+const clearConversation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found.' });
+    }
+
+    // Verify user is a participant
+    if (!conversation.participants.some(p => p.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    // Soft delete all text messages in this conversation by the current user
+    // or hard delete all messages (clear conversation entirely)
+    await Message.deleteMany({ conversation: id });
+
+    // Reset conversation last message
+    conversation.lastMessage = '';
+    conversation.lastMessageTime = null;
+    conversation.lastMessageSender = undefined;
+    await conversation.save();
+
+    // Emit socket event
+    try {
+      const io = getIO();
+      io.to(id).emit('conversation_cleared', { conversationId: id });
+    } catch (socketErr) {}
+
+    res.json({ success: true, message: 'Conversation cleared.' });
+  } catch (error) {
+    console.error('Clear conversation error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    Delete entire conversation (for current user — remove from their list)
+// @route   DELETE /api/conversations/:id
+const deleteConversation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found.' });
+    }
+
+    // Verify user is a participant
+    if (!conversation.participants.some(p => p.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    // Delete all messages in the conversation
+    await Message.deleteMany({ conversation: id });
+
+    // Delete the conversation itself
+    await Conversation.findByIdAndDelete(id);
+
+    // Emit socket event
+    try {
+      const io = getIO();
+      io.to(id).emit('conversation_deleted', { conversationId: id });
+    } catch (socketErr) {}
+
+    res.json({ success: true, message: 'Conversation deleted.' });
+  } catch (error) {
+    console.error('Delete conversation error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
@@ -399,4 +473,6 @@ module.exports = {
   reactToMessage,
   updateMessage,
   deleteMessage,
+  clearConversation,
+  deleteConversation,
 };
