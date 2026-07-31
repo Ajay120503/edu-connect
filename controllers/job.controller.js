@@ -62,7 +62,7 @@ const createJob = async (req, res) => {
   try {
     const {
       title, description, institutionName, roleType, isPaid,
-      stipend, location, requiredQualifications, skillsRequired,
+      stipend, currency, location, requiredQualifications, skillsRequired,
       deadline, contactEmail, maxApplicants,
     } = req.body;
 
@@ -78,6 +78,7 @@ const createJob = async (req, res) => {
       description,
       roleType: roleType || 'teacher',
       isPaid: isPaid === 'true' || isPaid === true,
+      currency: currency || 'INR',
       stipend: stipend || 0,
       location: location || 'onsite',
       requiredQualifications: requiredQualifications || '',

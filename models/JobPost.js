@@ -36,6 +36,11 @@ const jobPostSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    currency: {
+      type: String,
+      enum: ['INR', 'USD'],
+      default: 'INR',
+    },
     stipend: {
       type: Number,
       default: 0,
