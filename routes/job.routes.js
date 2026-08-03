@@ -42,7 +42,7 @@ router.get('/:id', getJob);
 
 // Protected routes - Institution members only
 router.post('/', authMiddleware, roleMiddleware('teacher', 'professor', 'hod', 'principal'), uploadImage.single('image'), createJob);
-router.put('/:id', authMiddleware, roleMiddleware('teacher', 'professor', 'hod', 'principal'), updateJob);
+router.put('/:id', authMiddleware, roleMiddleware('teacher', 'professor', 'hod', 'principal'), uploadImage.single('image'), updateJob);
 router.delete('/:id', authMiddleware, roleMiddleware('teacher', 'professor', 'hod', 'principal'), deleteJob);
 
 // Student only - apply to job

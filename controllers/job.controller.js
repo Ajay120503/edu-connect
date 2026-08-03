@@ -1,4 +1,5 @@
 const JobPost = require('../models/JobPost');
+const Post = require('../models/Post');
 const Application = require('../models/Application');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
@@ -101,6 +102,14 @@ const createJob = async (req, res) => {
     const populatedJob = await JobPost.findById(job._id)
       .populate('postedBy', 'name profilePic role category institutionName openToOpportunities');
 
+    // Create a feed post linked to this job (uses Post.jobPost field)
+    await Post.create({
+      author: req.user._id,
+      type: 'job',
+      text: populatedJob.title,
+      jobPost: populatedJob._id,
+    });
+
     // Notify followers about new job post
     const followers = req.user.followers || [];
     for (const followerId of followers) {
@@ -178,7 +187,26 @@ const updateJob = async (req, res) => {
       job.skillsRequired = req.body.skillsRequired.split(',').map(s => s.trim());
     }
 
+    // If a new image was uploaded, replace the old one on Cloudinary
+    if (req.file) {
+      if (job.image?.publicId) {
+        try {
+          await deleteFromCloudinary(job.image.publicId);
+        } catch (imgErr) {
+          console.error('Failed to delete old job image:', imgErr.message);
+        }
+      }
+      const result = await uploadToCloudinary(req.file, 'educonnect/job-images');
+      job.image = {
+        url: result.secure_url,
+        publicId: result.public_id,
+      };
+    }
+
     await job.save();
+
+    // Keep linked feed post text in sync with job title
+    await Post.updateMany({ jobPost: job._id }, { text: job.title });
 
     res.json({ success: true, job });
   } catch (error) {
@@ -208,6 +236,9 @@ const deleteJob = async (req, res) => {
 
     // Delete associated applications
     await Application.deleteMany({ jobPost: job._id });
+
+    // Delete linked feed post (type: 'job' with jobPost ref)
+    await Post.deleteMany({ jobPost: job._id });
 
     await job.deleteOne();
 

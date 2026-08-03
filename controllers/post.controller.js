@@ -27,6 +27,14 @@ const getFeed = async (req, res) => {
     const posts = await Post.find(query)
       .populate('author', 'name profilePic role category institutionName profilePic openToOpportunities')
       .populate({
+        path: 'jobPost',
+        select: 'title institutionName institutionLogo roleType isPaid stipend currency location deadline description image skillsRequired applicants',
+        populate: {
+          path: 'postedBy',
+          select: 'name profilePic institutionName openToOpportunities',
+        },
+      })
+      .populate({
         path: 'comments',
         select: 'author text likes createdAt',
         populate: {
@@ -102,6 +110,109 @@ const createPost = async (req, res) => {
     res.status(201).json({ success: true, post: populatedPost });
   } catch (error) {
     console.error('Create post error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// @desc    Update a post (author only)
+// @route   PUT /api/posts/:id
+const updatePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found.' });
+    }
+
+    // Check ownership
+    if (post.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You can only edit your own posts.' });
+    }
+
+    const { text, type, tags } = req.body;
+
+    // Update text
+    if (text !== undefined) {
+      post.text = text;
+    }
+
+    // Update type
+    if (type !== undefined) {
+      // F11 — Role guard for noticeboard posts
+      if (type === 'noticeboard' && !['teacher', 'professor', 'hod', 'principal'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'Only institution members can post notices.' });
+      }
+      post.type = type;
+      if (type === 'noticeboard') {
+        // F11 — Refresh expiry when marked as noticeboard
+        post.noticeboardExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+      } else if (post.noticeboardExpiresAt) {
+        // Clearing expiry when type changes away from noticeboard
+        post.noticeboardExpiresAt = undefined;
+      }
+    }
+
+    // Update tags
+    if (tags !== undefined) {
+      post.tags = typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags;
+    }
+
+    // Remove images marked for deletion (comma-separated or JSON array of publicIds)
+    let removedPublicIds = [];
+    if (req.body.removeImages) {
+      try {
+        removedPublicIds = JSON.parse(req.body.removeImages);
+      } catch {
+        removedPublicIds = req.body.removeImages.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      if (removedPublicIds.length > 0) {
+        post.images = post.images.filter(img => !removedPublicIds.includes(img.publicId));
+        for (const publicId of removedPublicIds) {
+          await deleteFromCloudinary(publicId);
+        }
+      }
+    }
+
+    // Upload new images
+    if (req.files && req.files.length > 0) {
+      const remainingSlots = 5 - post.images.length;
+      if (remainingSlots <= 0) {
+        return res.status(400).json({ message: 'Maximum 5 images allowed per post.' });
+      }
+      const filesToUpload = req.files.slice(0, remainingSlots);
+      for (const file of filesToUpload) {
+        const result = await uploadToCloudinary(file, 'educonnect/post-images');
+        post.images.push({
+          url: result.secure_url,
+          publicId: result.public_id,
+        });
+      }
+    }
+
+    await post.save();
+
+    const populatedPost = await Post.findById(post._id)
+      .populate('author', 'name profilePic role category institutionName openToOpportunities')
+      .populate({
+        path: 'jobPost',
+        select: 'title institutionName institutionLogo roleType isPaid stipend currency location deadline description image skillsRequired applicants',
+        populate: {
+          path: 'postedBy',
+          select: 'name profilePic institutionName openToOpportunities',
+        },
+      })
+      .populate({
+        path: 'comments',
+        select: 'author text likes createdAt',
+        populate: {
+          path: 'author',
+          select: 'name profilePic openToOpportunities',
+        },
+      });
+
+    res.json({ success: true, post: populatedPost });
+  } catch (error) {
+    console.error('Update post error:', error);
     res.status(500).json({ message: 'Server error.' });
   }
 };
@@ -227,6 +338,14 @@ const getSavedPosts = async (req, res) => {
     const posts = await Post.find({ saves: req.user._id })
       .populate('author', 'name profilePic role category institutionName openToOpportunities')
       .populate({
+        path: 'jobPost',
+        select: 'title institutionName institutionLogo roleType isPaid stipend currency location deadline description image skillsRequired applicants',
+        populate: {
+          path: 'postedBy',
+          select: 'name profilePic institutionName openToOpportunities',
+        },
+      })
+      .populate({
         path: 'comments',
         select: 'author text likes createdAt',
         populate: {
@@ -249,6 +368,14 @@ const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate('author', 'name profilePic role category institutionName openToOpportunities')
+      .populate({
+        path: 'jobPost',
+        select: 'title institutionName institutionLogo roleType isPaid stipend currency location deadline description image skillsRequired applicants',
+        populate: {
+          path: 'postedBy',
+          select: 'name profilePic institutionName openToOpportunities',
+        },
+      })
       .populate({
         path: 'comments',
         populate: {
@@ -290,6 +417,7 @@ const getNoticeboardPosts = async (req, res) => {
 module.exports = {
   getFeed,
   createPost,
+  updatePost,
   deletePost,
   toggleLike,
   toggleSave,
