@@ -10,7 +10,7 @@ const getConversations = async (req, res) => {
     const conversations = await Conversation.find({
       participants: req.user._id,
     })
-      .populate('participants', 'name profilePic role')
+      .populate('participants', 'name profilePic role openToOpportunities')
       .populate('lastMessageSender', 'name')
       .sort({ updatedAt: -1 });
 
@@ -54,7 +54,7 @@ const getMessages = async (req, res) => {
     }
 
     const messages = await Message.find({ conversation: id })
-      .populate('sender', 'name profilePic')
+      .populate('sender', 'name profilePic openToOpportunities')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -94,7 +94,7 @@ const createConversation = async (req, res) => {
     // Check if conversation already exists
     const existingConversation = await Conversation.findOne({
       participants: { $all: [req.user._id, participantId] },
-    }).populate('participants', 'name profilePic role');
+    }).populate('participants', 'name profilePic role openToOpportunities');
 
     if (existingConversation) {
       return res.json({ success: true, conversation: existingConversation });
@@ -110,7 +110,7 @@ const createConversation = async (req, res) => {
     });
 
     const populatedConversation = await Conversation.findById(conversation._id)
-      .populate('participants', 'name profilePic role');
+      .populate('participants', 'name profilePic role openToOpportunities');
 
     res.status(201).json({ success: true, conversation: populatedConversation });
   } catch (error) {
@@ -182,7 +182,7 @@ const sendMessage = async (req, res) => {
     await conversation.save();
 
     const populatedMessage = await Message.findById(message._id)
-      .populate('sender', 'name profilePic');
+      .populate('sender', 'name profilePic openToOpportunities');
 
     // Emit socket events
     try {
@@ -339,7 +339,7 @@ const updateMessage = async (req, res) => {
     await message.save();
 
     const populatedMessage = await Message.findById(message._id)
-      .populate('sender', 'name profilePic');
+      .populate('sender', 'name profilePic openToOpportunities');
 
     // Emit socket event for real-time update
     try {

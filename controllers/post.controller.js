@@ -25,13 +25,13 @@ const getFeed = async (req, res) => {
     }
 
     const posts = await Post.find(query)
-      .populate('author', 'name profilePic role category institutionName profilePic')
+      .populate('author', 'name profilePic role category institutionName profilePic openToOpportunities')
       .populate({
         path: 'comments',
         select: 'author text likes createdAt',
         populate: {
           path: 'author',
-          select: 'name profilePic',
+          select: 'name profilePic openToOpportunities',
         },
       })
       .sort({ createdAt: -1 })
@@ -97,7 +97,7 @@ const createPost = async (req, res) => {
 
     const post = await Post.create(postData);
     const populatedPost = await Post.findById(post._id)
-      .populate('author', 'name profilePic role category institutionName');
+      .populate('author', 'name profilePic role category institutionName openToOpportunities');
 
     res.status(201).json({ success: true, post: populatedPost });
   } catch (error) {
@@ -225,13 +225,13 @@ const toggleSave = async (req, res) => {
 const getSavedPosts = async (req, res) => {
   try {
     const posts = await Post.find({ saves: req.user._id })
-      .populate('author', 'name profilePic role category institutionName')
+      .populate('author', 'name profilePic role category institutionName openToOpportunities')
       .populate({
         path: 'comments',
         select: 'author text likes createdAt',
         populate: {
           path: 'author',
-          select: 'name profilePic',
+          select: 'name profilePic openToOpportunities',
         },
       })
       .sort({ createdAt: -1 });
@@ -248,12 +248,12 @@ const getSavedPosts = async (req, res) => {
 const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
-      .populate('author', 'name profilePic role category institutionName')
+      .populate('author', 'name profilePic role category institutionName openToOpportunities')
       .populate({
         path: 'comments',
         populate: {
           path: 'author',
-          select: 'name profilePic',
+          select: 'name profilePic openToOpportunities',
         },
       });
 
@@ -276,7 +276,7 @@ const getNoticeboardPosts = async (req, res) => {
       type: 'noticeboard',
       noticeboardExpiresAt: { $gt: new Date() },
     })
-      .populate('author', 'name profilePic role category institutionName institutionPic')
+      .populate('author', 'name profilePic role category institutionName institutionPic openToOpportunities')
       .sort({ createdAt: -1 })
       .limit(5);
 

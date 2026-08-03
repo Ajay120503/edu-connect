@@ -14,12 +14,12 @@ const getComments = async (req, res) => {
 
     // Get top-level comments only (parentComment is null)
     const comments = await Comment.find({ post: postId, parentComment: null })
-      .populate('author', 'name profilePic role')
+      .populate('author', 'name profilePic role openToOpportunities')
       .populate({
         path: 'replies',
         populate: {
           path: 'author',
-          select: 'name profilePic role',
+          select: 'name profilePic role openToOpportunities',
         },
       })
       .sort({ createdAt: -1 })
@@ -71,7 +71,7 @@ const addComment = async (req, res) => {
     await post.save();
 
     const populatedComment = await Comment.findById(comment._id)
-      .populate('author', 'name profilePic role');
+      .populate('author', 'name profilePic role openToOpportunities');
 
     // Notify post author (if not self)
     if (post.author.toString() !== req.user._id.toString()) {
@@ -134,7 +134,7 @@ const replyToComment = async (req, res) => {
     await parentComment.save();
 
     const populatedReply = await Comment.findById(reply._id)
-      .populate('author', 'name profilePic role');
+      .populate('author', 'name profilePic role openToOpportunities');
 
     // Notify parent comment author
     if (parentComment.author.toString() !== req.user._id.toString()) {

@@ -213,7 +213,7 @@ const getUserPosts = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const posts = await Post.find({ author: req.params.id })
-      .populate('author', 'name profilePic role category institutionName')
+      .populate('author', 'name profilePic role category institutionName openToOpportunities')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -241,7 +241,7 @@ const getUserPosts = async (req, res) => {
 const getUserJobs = async (req, res) => {
   try {
     const jobs = await JobPost.find({ postedBy: req.params.id })
-      .populate('postedBy', 'name profilePic role category')
+      .populate('postedBy', 'name profilePic role category openToOpportunities')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, jobs });
@@ -256,7 +256,7 @@ const getUserJobs = async (req, res) => {
 const getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .populate('followers', 'name profilePic role category institutionName');
+      .populate('followers', 'name profilePic role category institutionName openToOpportunities');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
@@ -274,7 +274,7 @@ const getFollowers = async (req, res) => {
 const getFollowing = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .populate('following', 'name profilePic role category institutionName');
+      .populate('following', 'name profilePic role category institutionName openToOpportunities');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });

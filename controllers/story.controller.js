@@ -29,7 +29,7 @@ const createStory = async (req, res) => {
 
     const story = await Story.create(storyData);
     const populated = await Story.findById(story._id)
-      .populate('author', 'name profilePic institutionName');
+      .populate('author', 'name profilePic institutionName openToOpportunities');
 
     res.status(201).json({ success: true, story: populated });
   } catch (error) {
@@ -46,7 +46,7 @@ const getStories = async (req, res) => {
     const authorIds = [...following, req.user._id];
 
     const stories = await Story.find({ author: { $in: authorIds } })
-      .populate('author', 'name profilePic institutionName institutionPic')
+      .populate('author', 'name profilePic institutionName institutionPic openToOpportunities')
       .sort({ createdAt: -1 });
 
     // Group by author

@@ -33,7 +33,7 @@ const getJobs = async (req, res) => {
     }
 
     const jobs = await JobPost.find(query)
-      .populate('postedBy', 'name profilePic role category institutionName institutionPic')
+      .populate('postedBy', 'name profilePic role category institutionName institutionPic openToOpportunities')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -99,7 +99,7 @@ const createJob = async (req, res) => {
 
     const job = await JobPost.create(jobData);
     const populatedJob = await JobPost.findById(job._id)
-      .populate('postedBy', 'name profilePic role category institutionName');
+      .populate('postedBy', 'name profilePic role category institutionName openToOpportunities');
 
     // Notify followers about new job post
     const followers = req.user.followers || [];
@@ -134,8 +134,8 @@ const createJob = async (req, res) => {
 const getJob = async (req, res) => {
   try {
     const job = await JobPost.findById(req.params.id)
-      .populate('postedBy', 'name profilePic role category institutionName profilePic')
-      .populate('applicants', 'name profilePic skills');
+      .populate('postedBy', 'name profilePic role category institutionName profilePic openToOpportunities')
+      .populate('applicants', 'name profilePic skills openToOpportunities');
 
     if (!job) {
       return res.status(404).json({ message: 'Job not found.' });
@@ -319,7 +319,7 @@ const getApplicants = async (req, res) => {
     const applications = await Application.find(query)
       .populate(
         'applicant',
-        'name profilePic skills qualifications email educationLevel city state bio age experience subject profession institutionName linkedinUrl resumeUrl interests'
+        'name profilePic skills qualifications email educationLevel city state bio age experience subject profession institutionName linkedinUrl resumeUrl interests openToOpportunities'
       )
       .sort({ createdAt: -1 });
 
@@ -398,7 +398,7 @@ const getMyApplications = async (req, res) => {
         select: 'title institutionName location roleType isPaid stipend deadline',
         populate: {
           path: 'postedBy',
-          select: 'name profilePic',
+          select: 'name profilePic openToOpportunities',
         },
       })
       .sort({ createdAt: -1 });
@@ -415,7 +415,7 @@ const getMyApplications = async (req, res) => {
 const getMyJobs = async (req, res) => {
   try {
     const jobs = await JobPost.find({ postedBy: req.user._id })
-      .populate('postedBy', 'name profilePic role category institutionName')
+      .populate('postedBy', 'name profilePic role category institutionName openToOpportunities')
       .sort({ createdAt: -1 });
 
     // Get application counts for each job
@@ -446,7 +446,7 @@ const getMatchedJobs = async (req, res) => {
     }
 
     const jobs = await JobPost.find({ isActive: true })
-      .populate('postedBy', 'name profilePic role category institutionName institutionPic');
+      .populate('postedBy', 'name profilePic role category institutionName institutionPic openToOpportunities');
 
     const studentSkills = (student.skills || []).map(s => s.toLowerCase().trim());
     const studentQualifications = (student.qualifications || []).map(q => q.toLowerCase().trim());
@@ -637,7 +637,7 @@ const addQnAQuestion = async (req, res) => {
     });
 
     const populated = await JobPost.findById(job._id)
-      .populate('qna.askedBy', 'name profilePic');
+      .populate('qna.askedBy', 'name profilePic openToOpportunities');
 
     res.status(201).json({ success: true, qna: populated.qna });
   } catch (error) {
@@ -686,7 +686,7 @@ const answerQnA = async (req, res) => {
     }
 
     const populated = await JobPost.findById(job._id)
-      .populate('qna.askedBy', 'name profilePic');
+      .populate('qna.askedBy', 'name profilePic openToOpportunities');
 
     res.json({ success: true, qna: populated.qna });
   } catch (error) {
