@@ -218,6 +218,7 @@ const forgotPassword = async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // console.log(otp);
 
     user.resetPasswordToken = otp;
     user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
